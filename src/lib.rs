@@ -1,10 +1,12 @@
 use bevy::prelude::*;
+use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 
 pub struct UiPanelsPlugin;
 
 impl Plugin for UiPanelsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(panel_dragging);
+        app.register_inspectable::<UiPanel>()
+            .add_system(panel_grabbing_and_dropping);
     }
 }
 
@@ -15,17 +17,24 @@ pub struct UiPanelBundle {
     panel: UiPanel,
 }
 
-#[derive(Component)]
+#[derive(Component, Inspectable)]
 pub struct UiPanel {
     title: String,
     panel_type: UiPanelType,
+    drag_state: Option<UiPanelDragState>,
+}
+
+#[derive(Inspectable)]
+pub struct UiPanelDragState {
+    mouse_offset: Vec2,
 }
 
 #[derive(Component)]
 pub struct UiPanelTitlebar;
 
+#[derive(Inspectable)]
 pub enum UiPanelType {
-    Window { titlebar: Entity },
+    Window { titlebar: Option<Entity> },
 }
 
 pub fn spawn_ui_panel(
@@ -60,8 +69,9 @@ pub fn spawn_ui_panel(
     panel.insert(UiPanel {
         title,
         panel_type: UiPanelType::Window {
-            titlebar: titlebar_entity.unwrap(),
+            titlebar: titlebar_entity,
         },
+        drag_state: None,
     });
 
     panel.id()
@@ -94,15 +104,26 @@ fn spawn_ui_panel_titlebar(parent: &mut ChildBuilder, font: Handle<Font>, title:
         .id()
 }
 
-fn panel_dragging(
-    interaction_query: Query<(Entity, &Interaction), (Changed<Interaction>, With<UiPanelTitlebar>)>,
+fn panel_grabbing_and_dropping(
+    interaction_query: Query<
+        (&Interaction, &Parent),
+        (Changed<Interaction>, With<UiPanelTitlebar>),
+    >,
+    mut panel_query: Query<&mut UiPanel>,
 ) {
-    for (titlebar_entity, interaction) in &interaction_query {
-        match *interaction {
-            Interaction::Clicked => {
-                println!("Clicked on titlebar!");
+    for (interaction, titlebar_parent) in &interaction_query {
+        if let Ok(mut panel) = panel_query.get_mut(titlebar_parent.get()) {
+            match *interaction {
+                Interaction::Clicked => {
+                    panel.drag_state = Some(UiPanelDragState {
+                        mouse_offset: Vec2::new(0.0, 0.0),
+                    });
+                }
+                _ if panel.drag_state.is_some() => {
+                    panel.drag_state = None;
+                }
+                _ => {}
             }
-            Interaction::None | Interaction::Hovered => {}
         }
     }
 }
