@@ -145,28 +145,44 @@ fn panel_grabbing_and_dropping(
         (&Interaction, &Parent),
         (Changed<Interaction>, With<UiPanelTitlebar>),
     >,
-    mut panel_query: Query<&mut UiPanel>,
+    mut panel_parent_children_query: Query<&mut Children, With<UiPanelParent>>,
+    mut panel_query: Query<(Entity, &mut UiPanel)>,
 ) {
     if let Some(window) = windows.get_primary() {
         if let Some(cursor_position) = window.cursor_position() {
             let cursor_position = Vec2::new(cursor_position.x, window.height() - cursor_position.y);
 
-            for (interaction, titlebar_parent) in &interaction_query {
-                if let Ok(mut panel) = panel_query.get_mut(titlebar_parent.get()) {
-                    match panel.panel_type {
-                        UiPanelType::Window {
-                            position,
-                            titlebar: _,
-                        } => match *interaction {
-                            Interaction::Clicked => {
-                                let mouse_offset = position - cursor_position;
-                                panel.drag_state = Some(UiPanelDragState { mouse_offset });
+            if let Ok(mut parent_children) = panel_parent_children_query.get_single_mut() {
+                for (interaction, titlebar_parent) in &interaction_query {
+                    if let Ok((panel_entity, mut panel)) =
+                        panel_query.get_mut(titlebar_parent.get())
+                    {
+                        if parent_children.contains(&panel_entity) {
+                            match panel.panel_type {
+                                UiPanelType::Window {
+                                    position,
+                                    titlebar: _,
+                                } => match *interaction {
+                                    Interaction::Clicked => {
+                                        let mouse_offset = position - cursor_position;
+                                        panel.drag_state = Some(UiPanelDragState { mouse_offset });
+
+                                        let mut new_parent_children_vec = parent_children
+                                            .iter()
+                                            .copied()
+                                            .filter(|entity| *entity != panel_entity)
+                                            .collect::<Vec<Entity>>();
+                                        new_parent_children_vec.push(panel_entity);
+
+                                        *parent_children = Children::with(&new_parent_children_vec);
+                                    }
+                                    _ if panel.drag_state.is_some() => {
+                                        panel.drag_state = None;
+                                    }
+                                    _ => {}
+                                },
                             }
-                            _ if panel.drag_state.is_some() => {
-                                panel.drag_state = None;
-                            }
-                            _ => {}
-                        },
+                        }
                     }
                 }
             }
