@@ -6,11 +6,16 @@ pub struct UiPanelsPlugin;
 impl Plugin for UiPanelsPlugin {
     fn build(&self, app: &mut App) {
         app.register_inspectable::<UiPanel>()
+            .add_startup_system(setup)
+            .add_system(panel_parenting)
             .add_system(panel_grabbing_and_dropping)
             .add_system(panel_dragging)
             .add_system(panel_updating);
     }
 }
+
+#[derive(Component, Inspectable)]
+struct UiPanelParent;
 
 #[derive(Bundle)]
 pub struct UiPanelBundle {
@@ -106,6 +111,34 @@ fn spawn_ui_panel_titlebar(parent: &mut ChildBuilder, font: Handle<Font>, title:
         .id()
 }
 
+fn setup(mut commands: Commands) {
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                ..default()
+            },
+            color: Color::NONE.into(),
+            ..default()
+        })
+        .insert(UiPanelParent);
+}
+
+fn panel_parenting(
+    mut commands: Commands,
+    panel_parent_query: Query<Entity, With<UiPanelParent>>,
+    panel_query: Query<Entity, (With<UiPanel>, Without<Parent>)>,
+) {
+    if panel_query.is_empty() {
+        return;
+    }
+
+    if let Ok(panel_parent) = panel_parent_query.get_single() {
+        let panel_entities = panel_query.iter().collect::<Vec<Entity>>();
+        commands.entity(panel_parent).push_children(&panel_entities);
+    }
+}
+
 fn panel_grabbing_and_dropping(
     windows: Res<Windows>,
     interaction_query: Query<
@@ -165,17 +198,15 @@ fn panel_dragging(windows: Res<Windows>, mut panel_query: Query<&mut UiPanel>) {
     }
 }
 
-fn panel_updating(windows: Res<Windows>, mut panel_query: Query<(&UiPanel, &mut Style)>) {
-    if let Some(window) = windows.get_primary() {
-        for (panel, mut style) in &mut panel_query {
-            match panel.panel_type {
-                UiPanelType::Window {
-                    position,
-                    titlebar: _,
-                } => {
-                    style.position.left = Val::Px(position.x);
-                    style.position.top = Val::Px(position.y);
-                }
+fn panel_updating(mut panel_query: Query<(&UiPanel, &mut Style)>) {
+    for (panel, mut style) in &mut panel_query {
+        match panel.panel_type {
+            UiPanelType::Window {
+                position,
+                titlebar: _,
+            } => {
+                style.position.left = Val::Px(position.x);
+                style.position.top = Val::Px(position.y);
             }
         }
     }
