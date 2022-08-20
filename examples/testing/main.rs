@@ -6,6 +6,9 @@ const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
+#[derive(Component)]
+struct ExampleButton;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -42,6 +45,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 color: NORMAL_BUTTON.into(),
                 ..default()
             })
+            .insert(ExampleButton)
             .with_children(|parent| {
                 parent.spawn_bundle(TextBundle::from_section(
                     "Button",
@@ -58,7 +62,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn button_system(
     mut interaction_query: Query<
         (&Interaction, &mut UiColor),
-        (Changed<Interaction>, With<Button>),
+        (Changed<Interaction>, With<ExampleButton>),
     >,
 ) {
     for (interaction, mut color) in &mut interaction_query {

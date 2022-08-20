@@ -3,8 +3,8 @@ use bevy::prelude::*;
 pub struct UiPanelsPlugin;
 
 impl Plugin for UiPanelsPlugin {
-    fn build(&self, _app: &mut App) {
-        //app.add_startup_system(setup);
+    fn build(&self, app: &mut App) {
+        app.add_system(panel_dragging);
     }
 }
 
@@ -69,7 +69,7 @@ pub fn spawn_ui_panel(
 
 fn spawn_ui_panel_titlebar(parent: &mut ChildBuilder, font: Handle<Font>, title: String) -> Entity {
     parent
-        .spawn_bundle(NodeBundle {
+        .spawn_bundle(ButtonBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Px(24.0)),
                 flex_direction: FlexDirection::Row,
@@ -92,4 +92,17 @@ fn spawn_ui_panel_titlebar(parent: &mut ChildBuilder, font: Handle<Font>, title:
             ));
         })
         .id()
+}
+
+fn panel_dragging(
+    interaction_query: Query<(Entity, &Interaction), (Changed<Interaction>, With<UiPanelTitlebar>)>,
+) {
+    for (titlebar_entity, interaction) in &interaction_query {
+        match *interaction {
+            Interaction::Clicked => {
+                println!("Clicked on titlebar!");
+            }
+            Interaction::None | Interaction::Hovered => {}
+        }
+    }
 }
