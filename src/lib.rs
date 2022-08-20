@@ -6,7 +6,9 @@ pub struct UiPanelsPlugin;
 impl Plugin for UiPanelsPlugin {
     fn build(&self, app: &mut App) {
         app.register_inspectable::<UiPanel>()
-            .add_system(panel_grabbing_and_dropping);
+            .add_system(panel_grabbing_and_dropping)
+            .add_system(panel_dragging)
+            .add_system(panel_updating);
     }
 }
 
@@ -34,7 +36,10 @@ pub struct UiPanelTitlebar;
 
 #[derive(Inspectable)]
 pub enum UiPanelType {
-    Window { titlebar: Option<Entity> },
+    Window {
+        position: Vec2,
+        titlebar: Option<Entity>,
+    },
 }
 
 pub fn spawn_ui_panel(
@@ -47,11 +52,7 @@ pub fn spawn_ui_panel(
     let mut panel = commands.spawn_bundle(NodeBundle {
         style: Style {
             position_type: PositionType::Absolute,
-            position: UiRect {
-                left: Val::Px(position.x),
-                top: Val::Px(position.y),
-                ..default()
-            },
+            position: UiRect::default(),
             size: Size::new(Val::Px(size.x), Val::Px(size.y)),
             justify_content: JustifyContent::FlexStart,
             flex_direction: FlexDirection::ColumnReverse,
@@ -69,6 +70,7 @@ pub fn spawn_ui_panel(
     panel.insert(UiPanel {
         title,
         panel_type: UiPanelType::Window {
+            position,
             titlebar: titlebar_entity,
         },
         drag_state: None,
@@ -105,24 +107,75 @@ fn spawn_ui_panel_titlebar(parent: &mut ChildBuilder, font: Handle<Font>, title:
 }
 
 fn panel_grabbing_and_dropping(
+    windows: Res<Windows>,
     interaction_query: Query<
         (&Interaction, &Parent),
         (Changed<Interaction>, With<UiPanelTitlebar>),
     >,
     mut panel_query: Query<&mut UiPanel>,
 ) {
-    for (interaction, titlebar_parent) in &interaction_query {
-        if let Ok(mut panel) = panel_query.get_mut(titlebar_parent.get()) {
-            match *interaction {
-                Interaction::Clicked => {
-                    panel.drag_state = Some(UiPanelDragState {
-                        mouse_offset: Vec2::new(0.0, 0.0),
-                    });
+    if let Some(window) = windows.get_primary() {
+        if let Some(cursor_position) = window.cursor_position() {
+            let cursor_position = Vec2::new(cursor_position.x, window.height() - cursor_position.y);
+
+            for (interaction, titlebar_parent) in &interaction_query {
+                if let Ok(mut panel) = panel_query.get_mut(titlebar_parent.get()) {
+                    match panel.panel_type {
+                        UiPanelType::Window {
+                            position,
+                            titlebar: _,
+                        } => match *interaction {
+                            Interaction::Clicked => {
+                                let mouse_offset = position - cursor_position;
+                                panel.drag_state = Some(UiPanelDragState { mouse_offset });
+                            }
+                            _ if panel.drag_state.is_some() => {
+                                panel.drag_state = None;
+                            }
+                            _ => {}
+                        },
+                    }
                 }
-                _ if panel.drag_state.is_some() => {
-                    panel.drag_state = None;
+            }
+        }
+    }
+}
+
+fn panel_dragging(windows: Res<Windows>, mut panel_query: Query<&mut UiPanel>) {
+    if let Some(window) = windows.get_primary() {
+        if let Some(cursor_position) = window.cursor_position() {
+            let cursor_position = Vec2::new(cursor_position.x, window.height() - cursor_position.y);
+
+            for mut panel in &mut panel_query {
+                let mouse_offset = match panel.drag_state {
+                    Some(ref drag_state) => drag_state.mouse_offset,
+                    None => continue,
+                };
+
+                match &mut panel.panel_type {
+                    UiPanelType::Window {
+                        ref mut position,
+                        titlebar: _,
+                    } => {
+                        *position = cursor_position + mouse_offset;
+                    }
                 }
-                _ => {}
+            }
+        }
+    }
+}
+
+fn panel_updating(windows: Res<Windows>, mut panel_query: Query<(&UiPanel, &mut Style)>) {
+    if let Some(window) = windows.get_primary() {
+        for (panel, mut style) in &mut panel_query {
+            match panel.panel_type {
+                UiPanelType::Window {
+                    position,
+                    titlebar: _,
+                } => {
+                    style.position.left = Val::Px(position.x);
+                    style.position.top = Val::Px(position.y);
+                }
             }
         }
     }
