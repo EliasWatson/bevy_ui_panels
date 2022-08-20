@@ -2,12 +2,17 @@ use bevy::prelude::*;
 use bevy_inspector_egui::prelude::*;
 use bevy_ui_panels::{spawn_ui_panel, UiPanelsPlugin};
 
+const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
+const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
+const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(UiPanelsPlugin)
         .add_startup_system(setup)
+        .add_system(button_system)
         .run();
 }
 
@@ -34,7 +39,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                color: Color::rgb(0.4, 0.4, 0.4).into(),
+                color: NORMAL_BUTTON.into(),
                 ..default()
             })
             .with_children(|parent| {
@@ -48,4 +53,25 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ));
             });
     });
+}
+
+fn button_system(
+    mut interaction_query: Query<
+        (&Interaction, &mut UiColor),
+        (Changed<Interaction>, With<Button>),
+    >,
+) {
+    for (interaction, mut color) in &mut interaction_query {
+        match *interaction {
+            Interaction::Clicked => {
+                *color = PRESSED_BUTTON.into();
+            }
+            Interaction::Hovered => {
+                *color = HOVERED_BUTTON.into();
+            }
+            Interaction::None => {
+                *color = NORMAL_BUTTON.into();
+            }
+        }
+    }
 }
