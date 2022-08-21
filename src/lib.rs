@@ -6,6 +6,9 @@ use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use buttons::UiPanelButton;
 use util::climb_parents;
 
+const PANEL_TITLEBAR_COLOR: Color = Color::rgb(0.3, 0.3, 0.6);
+const PANEL_BACKGROUND_COLOR: Color = Color::rgb(0.5, 0.5, 0.8);
+
 pub struct UiPanelsPlugin;
 
 impl Plugin for UiPanelsPlugin {
@@ -46,12 +49,12 @@ pub struct UiPanelDragState {
 #[derive(Component)]
 pub struct UiPanelTitlebar;
 
+#[derive(Component)]
+pub struct UiPanelContent;
+
 #[derive(Inspectable)]
 pub enum UiPanelType {
-    Window {
-        position: Vec2,
-        titlebar: Option<Entity>,
-    },
+    Window { position: Vec2 },
 }
 
 pub fn spawn_ui_panel(
@@ -62,40 +65,49 @@ pub fn spawn_ui_panel(
     size: Vec2,
     can_close: bool,
 ) -> Entity {
-    let mut panel = commands.spawn_bundle(NodeBundle {
-        style: Style {
-            position_type: PositionType::Absolute,
-            position: UiRect::default(),
-            size: Size::new(Val::Px(size.x), Val::Px(size.y)),
-            justify_content: JustifyContent::FlexStart,
-            flex_direction: FlexDirection::ColumnReverse,
+    let content_entity = commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                flex_grow: 1.0,
+                margin: UiRect {
+                    left: Val::Px(2.0),
+                    right: Val::Px(2.0),
+                    top: Val::Px(0.0),
+                    bottom: Val::Px(2.0),
+                },
+                ..default()
+            },
+            color: PANEL_BACKGROUND_COLOR.into(),
             ..default()
-        },
-        color: Color::rgb(0.5, 0.5, 0.8).into(),
-        ..default()
-    });
+        })
+        .id();
 
-    let mut titlebar_entity: Option<Entity> = None;
-    panel.with_children(|parent| {
-        titlebar_entity = Some(spawn_ui_panel_titlebar(
-            parent,
-            font,
-            title.clone(),
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: UiRect::default(),
+                size: Size::new(Val::Px(size.x), Val::Px(size.y)),
+                flex_direction: FlexDirection::ColumnReverse,
+                justify_content: JustifyContent::FlexStart,
+                align_items: AlignItems::Stretch,
+                ..default()
+            },
+            color: PANEL_TITLEBAR_COLOR.into(),
+            ..default()
+        })
+        .with_children(|parent| {
+            spawn_ui_panel_titlebar(parent, font, title.clone(), can_close);
+        })
+        .add_child(content_entity)
+        .insert(UiPanel {
+            title,
             can_close,
-        ));
-    });
+            panel_type: UiPanelType::Window { position },
+            drag_state: None,
+        });
 
-    panel.insert(UiPanel {
-        title,
-        can_close,
-        panel_type: UiPanelType::Window {
-            position,
-            titlebar: titlebar_entity,
-        },
-        drag_state: None,
-    });
-
-    panel.id()
+    content_entity
 }
 
 fn spawn_ui_panel_titlebar(
@@ -114,7 +126,7 @@ fn spawn_ui_panel_titlebar(
                 padding: UiRect::all(Val::Px(4.0)),
                 ..default()
             },
-            color: Color::rgb(0.3, 0.3, 0.6).into(),
+            color: PANEL_TITLEBAR_COLOR.into(),
             ..default()
         })
         .insert(UiPanelTitlebar)
@@ -197,10 +209,7 @@ fn panel_grabbing_and_dropping(
                     {
                         if parent_children.contains(&panel_entity) {
                             match panel.panel_type {
-                                UiPanelType::Window {
-                                    position,
-                                    titlebar: _,
-                                } => match *interaction {
+                                UiPanelType::Window { position } => match *interaction {
                                     Interaction::Clicked => {
                                         let mouse_offset = position - cursor_position;
                                         panel.drag_state = Some(UiPanelDragState { mouse_offset });
@@ -240,10 +249,7 @@ fn panel_dragging(windows: Res<Windows>, mut panel_query: Query<&mut UiPanel>) {
                 };
 
                 match &mut panel.panel_type {
-                    UiPanelType::Window {
-                        ref mut position,
-                        titlebar: _,
-                    } => {
+                    UiPanelType::Window { ref mut position } => {
                         *position = cursor_position + mouse_offset;
                     }
                 }
@@ -255,10 +261,7 @@ fn panel_dragging(windows: Res<Windows>, mut panel_query: Query<&mut UiPanel>) {
 fn panel_updating(mut panel_query: Query<(&UiPanel, &mut Style)>) {
     for (panel, mut style) in &mut panel_query {
         match panel.panel_type {
-            UiPanelType::Window {
-                position,
-                titlebar: _,
-            } => {
+            UiPanelType::Window { position } => {
                 style.position.left = Val::Px(position.x);
                 style.position.top = Val::Px(position.y);
             }
