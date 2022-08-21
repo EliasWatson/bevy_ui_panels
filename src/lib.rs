@@ -1,5 +1,10 @@
+mod buttons;
+mod util;
+
 use bevy::{prelude::*, ui::FocusPolicy};
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
+use buttons::UiPanelButton;
+use util::climb_parents;
 
 pub struct UiPanelsPlugin;
 
@@ -10,7 +15,8 @@ impl Plugin for UiPanelsPlugin {
             .add_system(panel_parenting)
             .add_system(panel_grabbing_and_dropping)
             .add_system(panel_dragging)
-            .add_system(panel_updating);
+            .add_system(panel_updating)
+            .add_system(panel_button_interaction);
     }
 }
 
@@ -137,14 +143,7 @@ fn spawn_ui_panel_titlebar(
                 });
 
             if can_close {
-                parent.spawn_bundle(ButtonBundle {
-                    style: Style {
-                        size: Size::new(Val::Px(16.0), Val::Px(16.0)),
-                        ..default()
-                    },
-                    color: Color::rgb(0.8, 0.4, 0.4).into(),
-                    ..default()
-                });
+                UiPanelButton::Close.spawn(parent, Val::Px(16.0));
             }
         })
         .id()
@@ -262,6 +261,32 @@ fn panel_updating(mut panel_query: Query<(&UiPanel, &mut Style)>) {
             } => {
                 style.position.left = Val::Px(position.x);
                 style.position.top = Val::Px(position.y);
+            }
+        }
+    }
+}
+
+fn panel_button_interaction(
+    mut commands: Commands,
+    mut interaction_query: Query<
+        (Entity, &Interaction, &UiPanelButton, &mut UiColor),
+        Changed<Interaction>,
+    >,
+    parent_query: Query<&Parent>,
+    panel_query: Query<Entity, With<UiPanel>>,
+) {
+    for (panel_button_entity, interaction, panel_button, mut color) in &mut interaction_query {
+        *color = panel_button.color(interaction).into();
+
+        if let Interaction::Clicked = *interaction {
+            match panel_button {
+                UiPanelButton::Close => {
+                    if let Some(panel_entity) =
+                        climb_parents(&parent_query, &panel_query, panel_button_entity)
+                    {
+                        commands.entity(panel_entity).despawn_recursive();
+                    }
+                }
             }
         }
     }
