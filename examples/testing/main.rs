@@ -36,6 +36,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         String::from("Test Panel"),
         Vec2::new(200.0, 50.0),
         Vec2::new(200.0, 150.0),
+        true,
     );
 
     commands.entity(panel_entity).with_children(|parent| {
@@ -70,6 +71,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         String::from("Test Panel #2"),
         Vec2::new(50.0, 15.0),
         Vec2::new(150.0, 300.0),
+        false,
     );
 
     commands.entity(panel_entity_2).with_children(|parent| {

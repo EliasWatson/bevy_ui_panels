@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, ui::FocusPolicy};
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 
 pub struct UiPanelsPlugin;
@@ -27,6 +27,7 @@ pub struct UiPanelBundle {
 #[derive(Component, Inspectable)]
 pub struct UiPanel {
     title: String,
+    can_close: bool,
     panel_type: UiPanelType,
     drag_state: Option<UiPanelDragState>,
 }
@@ -53,6 +54,7 @@ pub fn spawn_ui_panel(
     title: String,
     position: Vec2,
     size: Vec2,
+    can_close: bool,
 ) -> Entity {
     let mut panel = commands.spawn_bundle(NodeBundle {
         style: Style {
@@ -69,11 +71,17 @@ pub fn spawn_ui_panel(
 
     let mut titlebar_entity: Option<Entity> = None;
     panel.with_children(|parent| {
-        titlebar_entity = Some(spawn_ui_panel_titlebar(parent, font, title.clone()));
+        titlebar_entity = Some(spawn_ui_panel_titlebar(
+            parent,
+            font,
+            title.clone(),
+            can_close,
+        ));
     });
 
     panel.insert(UiPanel {
         title,
+        can_close,
         panel_type: UiPanelType::Window {
             position,
             titlebar: titlebar_entity,
@@ -84,14 +92,20 @@ pub fn spawn_ui_panel(
     panel.id()
 }
 
-fn spawn_ui_panel_titlebar(parent: &mut ChildBuilder, font: Handle<Font>, title: String) -> Entity {
+fn spawn_ui_panel_titlebar(
+    parent: &mut ChildBuilder,
+    font: Handle<Font>,
+    title: String,
+    can_close: bool,
+) -> Entity {
     parent
         .spawn_bundle(ButtonBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Px(24.0)),
                 flex_direction: FlexDirection::Row,
-                justify_content: JustifyContent::Center,
+                justify_content: JustifyContent::FlexStart,
                 align_items: AlignItems::Center,
+                padding: UiRect::all(Val::Px(4.0)),
                 ..default()
             },
             color: Color::rgb(0.3, 0.3, 0.6).into(),
@@ -99,14 +113,39 @@ fn spawn_ui_panel_titlebar(parent: &mut ChildBuilder, font: Handle<Font>, title:
         })
         .insert(UiPanelTitlebar)
         .with_children(|parent| {
-            parent.spawn_bundle(TextBundle::from_section(
-                title,
-                TextStyle {
-                    font,
-                    font_size: 16.0,
-                    color: Color::WHITE,
-                },
-            ));
+            parent
+                .spawn_bundle(NodeBundle {
+                    style: Style {
+                        flex_grow: 1.0,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    color: Color::NONE.into(),
+                    focus_policy: FocusPolicy::Pass,
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent.spawn_bundle(TextBundle::from_section(
+                        title,
+                        TextStyle {
+                            font: font.clone(),
+                            font_size: 16.0,
+                            color: Color::WHITE,
+                        },
+                    ));
+                });
+
+            if can_close {
+                parent.spawn_bundle(ButtonBundle {
+                    style: Style {
+                        size: Size::new(Val::Px(16.0), Val::Px(16.0)),
+                        ..default()
+                    },
+                    color: Color::rgb(0.8, 0.4, 0.4).into(),
+                    ..default()
+                });
+            }
         })
         .id()
 }
